@@ -6,45 +6,102 @@ import sys
 
 _db = sqlite3.connect('database.db')
 _cursor = _db.cursor()
-class dbReset(tornado.web.RequestHandler):
+
+class dbRequestHandler(tornado.web.RequestHandler):
 	def delete(self):
 		_cursor.execute("DROP TABLE IF EXISTS item")
-		_cursor.execute("CREATE TABLE item (item VARCHAR, price FLOAT, quantity INT)")
+		_cursor.execute("CREATE TABLE item (items STRING, price REAL, quantity INT)")
+                _cursor.execute("INSERT INTO item VALUES ('cheese','0.00','0')")
+                _cursor.execute("INSERT INTO item VALUES ('grape','0.00','0')")
 		_db.commit()
 		self.write('OK')
-class grapeRequestHandler(tornado.web.RequestHandler):
-	def put(self):
-		record = ("grape", float(self.get_argument("price", default = "0")), int(self.get_argument("quantity", default = "0")))
-		_cursor.execute("INSERT INTO item VALUES (?,?,?)", record)
-		_db.commit()
-		self.write('OK')
-	def get(self, ID):
-		range = self.get_argument("range", default ="0, "+str(sys.maxint)).split(',')
-		params = [ID]+range
-		_cursor.execute("SELECT * FROM item WHERE ID=? AND time>=? AND time<=?", params)
-		records = []
-		for row in _cursor:
-			records = records + [{'ID':row[0],'value':row[1],'time':row[2]}]
-		self.write(tornado.escape.json_encode(records))
+        def get(self):
+                for line in _db.iterdump():
+                        self.write('%s\n' % line)
 
 class cheeseRequestHandler(tornado.web.RequestHandler):
 	def put(self):
-		record = ("cheese", float(self.get_argument("price", default = "0")), int(self.get_argument("quantity", default = "0")))
-		_cursor.execute("INSERT INTO item VALUES (?,?,?)", record)
-		_db.commit()
-		self.write('OK')
-	def get(self, ID):
-		range = self.get_argument("range", default ="0, "+str(sys.maxint)).split(',')
-		params = [ID]+range
-		_cursor.execute("SELECT * FROM item WHERE ID=? AND time>=? AND time<=?", params)
-		records = []
-		for row in _cursor:
-			records = records + [{'ID':row[0],'value':row[1],'time':row[2]}]
-		self.write(tornado.escape.json_encode(records))
+                price = self.get_argument("price", default = "")
+                quantity = self.get_argument("quantity", default = "")
+                if (quantity != ""):
+                        _cursor.execute("UPDATE item SET quantity=? WHERE items='cheese'",(quantity,))
+                elif (price != ""):
+                        _cursor.execute("UPDATE item SET price=? WHERE items='cheese'",(price,))
+                _db.commit()
+                self.write('OK')
 
+	def get(self):
+		price = self.get_argument("price", default="")
+		quantity = self.get_argument("quantity", default="")
+		value = self.get_argument("value", default="")
+		if price != "":
+			_cursor.execute("SELECT price FROM item WHERE items = 'cheese'")
+			Price = 0.00
+			for row in _cursor:
+				Price = row[0]	
+			self.write('cheese unit price: ' + str("{0:.2f}".format(Price)))
 
+		elif quantity != "":
+			_cursor.execute("SELECT quantity FROM item WHERE items = 'cheese'")
+			Quantity = 0
+			for row in _cursor:
+				Quantity = row[0]
+			self.write('cheese stock level: ' + str("{0}").format(Quantity))
 
-application = tornado.web.Application([(r"/database", dbReset),(r"/item/grape", grapeRequestHandler),(r"/item/cheese", cheeseRequestHandler)])
+		elif value != "":
+                       	_cursor.execute("SELECT price,quantity FROM item WHERE items = 'cheese'")
+                       	Quantity = 0
+                        Price = 0.00
+                        for row in _cursor:
+                                Price = row[0]
+                                Quantity = row[1]
+                        total = Price*Quantity
+                        self.write('cheese total stock value: ' + str("{0:.2f}".format(total)))
+				
+class grapeRequestHandler(tornado.web.RequestHandler):
+	def put(self):
+                price = self.get_argument("price", default = "")
+                quantity = self.get_argument("quantity", default = "")
+                if (quantity != ""):
+                        _cursor.execute("UPDATE item SET quantity=? WHERE items='grape'",(quantity,))
+                elif (price != ""):
+                        _cursor.execute("UPDATE item SET price=? WHERE items='grape'",(price,))
+                _db.commit()
+                self.write('OK')	
+
+	def get(self):
+		price = self.get_argument("price", default="")
+		quantity = self.get_argument("quantity", default="")
+		value = self.get_argument("value", default="")
+		if price == 'true':
+                        _cursor.execute("SELECT price FROM item WHERE items = 'grape'")
+                        Price = 0.00
+                        for row in _cursor:
+                                Price = row[0]
+                        self.write('grape unit price: ' + str("{0:.2f}".format(Price)))
+
+                elif quantity == 'true':
+                        _cursor.execute("SELECT quantity FROM item WHERE items = 'grape'")
+                        Quantity = 0
+                        for row in _cursor:
+                                Quantity = row[0]
+                        self.write('grape stock level: ' + str("{0}").format(Quantity))
+
+		elif value == 'true':
+                        _cursor.execute("SELECT price,quantity FROM item WHERE items = 'grape'")
+                        Quantity = 0
+                        Price = 0.00
+                        for row in _cursor:
+                                Price = row[0]
+                                Quantity = row[1]
+                        total = Price*Quantity
+                        self.write('grape total stock value: ' + str("{0}".format(total)))
+
+application = tornado.web.Application([
+	(r"/database", dbRequestHandler),
+	(r"/item/cheese", cheeseRequestHandler),
+	(r"/item/grape", grapeRequestHandler),
+])
 
 if __name__ == "__main__":
 	http_server = tornado.httpserver.HTTPServer(application)
